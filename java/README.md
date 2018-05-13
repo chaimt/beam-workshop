@@ -1,7 +1,7 @@
 # beam-workshop
 workshop for apache beam
 
-##installation instructions
+## installation instructions
 
 Project has maven pom for compilation and deployment.
 assuming you have java 8 and maven installed on your machine:
@@ -13,10 +13,10 @@ assuming you have java 8 and maven installed on your machine:
    
 Currently we will run on google data flow, and in the future we will see how to deploy on flink and spark
 
-##project
+## Project
 There are two examples in this workshop
 
-###TrafficMaxLaneFlow
+### TrafficMaxLaneFlow
 This project will read a file from google storage, process it and then write the result to bigquery.
 The file for the project can be found at:
 
@@ -26,7 +26,7 @@ The file for the project can be found at:
 (this file is small: 1.92 GB, with millions of records)
 
 
-####Pre project understanding
+#### Pre project understanding
 * Knowledge
     * You should have a basic knowledge of apache beam before beginning. For this please see:
       https://beam.apache.org/get-started/beam-overview/
