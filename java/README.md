@@ -3,12 +3,17 @@ workshop for apache beam
 
 ## installation instructions
 
+### prerequisites
+    * java 8
+    * IDE: intellij
+    * maven
+
 Project has maven pom for compilation and deployment.
 assuming you have java 8 and maven installed on your machine:
 (run java -version to make sure you are running java 8)
 
 * run mvn clean package to download all dependencies
-  * Project uses maven-shade-plugin to create an uber job to deply
+  * Project uses maven-shade-plugin to create an uber job to deploy
   * To read more information on dataflow and maven: see https://cloud.google.com/dataflow/docs/quickstarts/quickstart-java-maven
    
 Currently we will run on google data flow, and in the future we will see how to deploy on flink and spark
@@ -34,27 +39,29 @@ The file for the project can be found at:
       https://cloud.google.com/dataflow/security-and-permissions
 
 
+* Running project in cloud
+    ```
+    To run the code, use maven to run the main class with parameters 
+        
+    mvn compile exec:java -Dexec.mainClass=com.tikal.turkel.TrafficMaxLaneFlow -Dexec.args="--project=backend-ct \
+              --stagingLocation=gs://backend-ct/df/stage/ \
+              --tempLocation=gs://backend-ct/df/temp/ \
+              --googleCredentials=./src/main/resources/Backend-CT-4641c937bd57.json
+              --serviceAccount=beam-workshop-may@backend-ct.iam.gserviceaccount.com \
+              --filesToStage=./target/beam-workshop-bundled-1.0-SNAPSHOT.jar \
+              --runner=DataflowRunner"
+    
+    You can view the run result at:
+              
+    https://console.cloud.google.com/dataflow?project=backend-ct
+    ```
+
 Project steps
 * Step 1: copy data as is from storage to bigquery (master code)
     * ReadFileAndExtractTimestamps -> get time for windowing from event
     * ExtractFlowInfoFn -> extract data from csv to class
     * FormatMaxesFn -> convert class to row for writing in bigquery
     * BigQueryIO.writeTableRows() -> write to table using schema FormatMaxesFn.getSchema()
-
-To run the code, use maven to run the main class with parameters 
-    
-mvn compile exec:java -Dexec.mainClass=com.tikal.turkel.TrafficMaxLaneFlow -Dexec.args="--project=backend-ct \
-          --stagingLocation=gs://backend-ct/df/stage/ \
-          --tempLocation=gs://backend-ct/df/temp/ \
-          --googleCredentials=./src/main/resources/Backend-CT-4641c937bd57.json
-          --serviceAccount=beam-workshop-may@backend-ct.iam.gserviceaccount.com \
-          --filesToStage=./target/beam-workshop-bundled-1.0-SNAPSHOT.jar \
-          --runner=DataflowRunner"
-
-You can view the run result at:
-          
-https://console.cloud.google.com/dataflow?project=backend-ct
-
 
 * Step 2: fix parse of data to duplicate each row per lane information    
    * fix method ExtractFlowInfoFn
@@ -63,6 +70,17 @@ https://console.cloud.google.com/dataflow?project=backend-ct
    * use MaxFlow for the combine per key (Combine.perKey)
     
 * Step 4: Pub/Sub
+    * replace ReadFileAndExtractTimestamps -> with PubSub reader
+    
+    ```
+        to inject data into the pubsub run the following command
+    mvn compile exec:java \
+    -Dexec.mainClass=com.tikal.turkel.utils.Injector \
+    -Dexec.args="backend-ct \
+    topic \
+    ./src/test/resources/traffic_sensor_test2.csv \
+    ./src/main/resources/Backend-CT-4641c937bd57.json"
+    ```
 
 backend-ct one /Users/chaimt/Downloads/traffic_sensor_test2.csv /Users/chaimt/workspace/chaim/beam-workshop/java/src/main/resources/Backend-CT-4641c937bd57.json
 
