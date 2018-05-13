@@ -40,21 +40,22 @@ Project steps
     * ExtractFlowInfoFn -> extract data from csv to class
     * FormatMaxesFn -> convert class to row for writing in bigquery
     * BigQueryIO.writeTableRows() -> write to table using schema FormatMaxesFn.getSchema()
-
-To run the code, use maven to run the main class with parameters 
+    *
+    ```
+    To run the code, use maven to run the main class with parameters 
+        
+    mvn compile exec:java -Dexec.mainClass=com.tikal.turkel.TrafficMaxLaneFlow -Dexec.args="--project=backend-ct \
+              --stagingLocation=gs://backend-ct/df/stage/ \
+              --tempLocation=gs://backend-ct/df/temp/ \
+              --googleCredentials=./src/main/resources/Backend-CT-4641c937bd57.json
+              --serviceAccount=beam-workshop-may@backend-ct.iam.gserviceaccount.com \
+              --filesToStage=./target/beam-workshop-bundled-1.0-SNAPSHOT.jar \
+              --runner=DataflowRunner"
     
-mvn compile exec:java -Dexec.mainClass=com.tikal.turkel.TrafficMaxLaneFlow -Dexec.args="--project=backend-ct \
-          --stagingLocation=gs://backend-ct/df/stage/ \
-          --tempLocation=gs://backend-ct/df/temp/ \
-          --googleCredentials=./src/main/resources/Backend-CT-4641c937bd57.json
-          --serviceAccount=beam-workshop-may@backend-ct.iam.gserviceaccount.com \
-          --filesToStage=./target/beam-workshop-bundled-1.0-SNAPSHOT.jar \
-          --runner=DataflowRunner"
-
-You can view the run result at:
-          
-https://console.cloud.google.com/dataflow?project=backend-ct
-
+    You can view the run result at:
+              
+    https://console.cloud.google.com/dataflow?project=backend-ct
+    ```
 
 * Step 2: fix parse of data to duplicate each row per lane information    
    * fix method ExtractFlowInfoFn
