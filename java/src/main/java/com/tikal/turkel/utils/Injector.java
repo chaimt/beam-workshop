@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.BaseStream;
 
 /**
@@ -87,8 +88,8 @@ class Injector {
         );
     }
 
-    public static void main(String[] args) throws IOException, InterruptedException {
-        if (args.length < 3) {
+    public static void main(String[] args) throws IOException {
+        if (args.length < 4) {
             System.out.println("Usage: Injector project-name (topic-name|none) (filename|none)");
             System.exit(1);
         }
@@ -96,6 +97,13 @@ class Injector {
         String topicName = args[1];
         String fileName = args[2];
         String googleCredentials = args[3];
+
+        System.out.println("************************");
+        System.out.println("project\t\t\t " + project);
+        System.out.println("topicName\t\t " + topicName);
+        System.out.println("fileName\t\t " + fileName);
+        System.out.println("googleCredentials\t " + googleCredentials);
+        System.out.println("************************");
 
         System.getProperties().setProperty("GOOGLE_APPLICATION_CREDENTIALS", googleCredentials);
 
@@ -108,6 +116,7 @@ class Injector {
         InjectorUtils.createTopic(pubsub, topic);
         System.out.println("Injecting to topic: " + topic);
 
+        AtomicInteger sentCount = new AtomicInteger();
         Flux<String> lines = fromPath((new File(fileName)).toPath());
         lines.map(line -> {
             PubsubMessage pubsubMessage = null;
@@ -124,6 +133,7 @@ class Injector {
                     publishRequest.setMessages(pubsubMessages);
                     try {
                         pubsub.projects().topics().publish(topic, publishRequest).execute();
+                        System.out.println(String.format("sending %d/%d",pubsubMessages.size(),sentCount.addAndGet(pubsubMessages.size())));
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
