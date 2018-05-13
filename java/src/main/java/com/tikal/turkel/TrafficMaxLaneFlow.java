@@ -31,17 +31,18 @@ import org.apache.beam.sdk.coders.AvroCoder;
 import org.apache.beam.sdk.coders.DefaultCoder;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
+import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
 import org.apache.beam.sdk.options.Default;
 import org.apache.beam.sdk.options.Description;
 import org.apache.beam.sdk.options.PipelineOptionsFactory;
 import org.apache.beam.sdk.options.Validation;
-import org.apache.beam.sdk.transforms.DoFn;
-import org.apache.beam.sdk.transforms.PTransform;
-import org.apache.beam.sdk.transforms.ParDo;
-import org.apache.beam.sdk.transforms.SerializableFunction;
+import org.apache.beam.sdk.transforms.*;
+import org.apache.beam.sdk.transforms.windowing.SlidingWindows;
+import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
+import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
@@ -199,7 +200,6 @@ public class TrafficMaxLaneFlow {
             String direction = items[3];
             Integer totalFlow = tryIntParse(items[7]);
             for (int i = 1; i <= 8; ++i) {
-//            int i=1;
                 Integer laneFlow = tryIntParse(items[6 + 5 * i]);
                 Double laneAvgOccupancy = tryDoubleParse(items[7 + 5 * i]);
                 Double laneAvgSpeed = tryDoubleParse(items[8 + 5 * i]);
@@ -278,6 +278,17 @@ public class TrafficMaxLaneFlow {
         }
     }
 
+    static class MaxLaneFlow
+            extends PTransform<PCollection<KV<String, LaneInfo>>, PCollection<TableRow>> {
+        @Override
+        public PCollection<TableRow> expand(PCollection<KV<String, LaneInfo>> flowInfo) {
+            PCollection<KV<String, LaneInfo>> flowMaxes = flowInfo.apply(Combine.perKey(new MaxFlow()));
+            PCollection<TableRow> results = flowMaxes.apply(
+                    ParDo.of(new FormatMaxesFn()));
+            return results;
+        }
+    }
+
     static class ReadFileAndExtractTimestamps extends PTransform<PBegin, PCollection<String>> {
         private final String inputFile;
 
@@ -323,6 +334,10 @@ public class TrafficMaxLaneFlow {
 
         void setGoogleCredentials(String value);
 
+        @Validation.Required
+        Boolean getStreaming();
+
+        void setStreaming(Boolean value);
     }
 
     /**
@@ -346,14 +361,21 @@ public class TrafficMaxLaneFlow {
         tableRef.setDatasetId(options.getBigQueryDataset());
         tableRef.setTableId(options.getBigQueryTable());
 
-
         ExamplePubsubTopicAndSubscriptionOptions pubsubOptions =
                 options.as(ExamplePubsubTopicAndSubscriptionOptions.class);
 
-        pipeline
-                .apply("ReadLines", new ReadFileAndExtractTimestamps(options.getInputFile()))
+            PCollection<String> readLines = options.getStreaming() ?
+                    pipeline.apply("ReadLines", new ReadFileAndExtractTimestamps(options.getInputFile()))
+                    :
+                    pipeline.apply("ReadLines pubsub", PubsubIO.readStrings().fromTopic(pubsubOptions.getPubsubTopic()));
+
+        readLines
                 .apply(ParDo.of(new ExtractFlowInfoFn()))
-                .apply(ParDo.of(new FormatMaxesFn()))
+                .apply(
+                        Window.into(
+                                SlidingWindows.of(Duration.standardMinutes(options.getWindowDuration()))
+                                        .every(Duration.standardMinutes(options.getWindowSlideEvery()))))
+                .apply(new MaxLaneFlow())
                 .apply(BigQueryIO.writeTableRows().to(tableRef).withSchema(FormatMaxesFn.getSchema()));
 
         // Run the pipeline.
