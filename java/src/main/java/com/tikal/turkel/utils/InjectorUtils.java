@@ -48,8 +48,6 @@ class InjectorUtils {
       checkNotNull(jsonFactory);
       GoogleCredential credential =
         GoogleCredential.fromStream(new FileInputStream(new File(System.getProperties().getProperty("GOOGLE_APPLICATION_CREDENTIALS"))));
-//
-//          GoogleCredential.getApplicationDefault(httpTransport, jsonFactory);
       if (credential.createScopedRequired()) {
           credential = credential.createScoped(PubsubScopes.all());
       }
