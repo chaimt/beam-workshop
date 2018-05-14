@@ -198,18 +198,16 @@ public class TrafficMaxLaneFlow {
             String freeway = items[2];
             String direction = items[3];
             Integer totalFlow = tryIntParse(items[7]);
-            for (int i = 1; i <= 8; ++i) {
-//            int i=1;
-                Integer laneFlow = tryIntParse(items[6 + 5 * i]);
-                Double laneAvgOccupancy = tryDoubleParse(items[7 + 5 * i]);
-                Double laneAvgSpeed = tryDoubleParse(items[8 + 5 * i]);
-                if (laneFlow == null || laneAvgOccupancy == null || laneAvgSpeed == null) {
-                    return;
-                }
-                LaneInfo laneInfo = new LaneInfo(stationId, "lane" + i, direction, freeway, timestamp,
-                        laneFlow, laneAvgOccupancy, laneAvgSpeed, totalFlow);
-                c.output(KV.of(stationId, laneInfo));
+            int i = 1;
+            Integer laneFlow = tryIntParse(items[6 + 5 * i]);
+            Double laneAvgOccupancy = tryDoubleParse(items[7 + 5 * i]);
+            Double laneAvgSpeed = tryDoubleParse(items[8 + 5 * i]);
+            if (laneFlow == null || laneAvgOccupancy == null || laneAvgSpeed == null) {
+                return;
             }
+            LaneInfo laneInfo = new LaneInfo(stationId, "lane" + i, direction, freeway, timestamp,
+                    laneFlow, laneAvgOccupancy, laneAvgSpeed, totalFlow);
+            c.output(KV.of(stationId, laneInfo));
         }
     }
 
