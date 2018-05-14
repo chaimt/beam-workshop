@@ -7,6 +7,10 @@ workshop for apache beam
     * java 8
     * IDE: intellij
     * maven
+    * basic understanding of beam:
+        * https://www.meetup.com/full-stack-developer-il/events/245825253/
+        * https://www.youtube.com/watch?v=WIRzGJQZbGI
+        * https://docs.google.com/presentation/d/1T-UkVP0sFOwjZ1ZZVzFj6DzwreYYismN5miDayfakNA/edit?usp=sharing
 
 Project has maven pom for compilation and deployment.
 assuming you have java 8 and maven installed on your machine:
@@ -73,7 +77,8 @@ Project steps
     * replace ReadFileAndExtractTimestamps -> with PubSub reader
     
     ```
-        to inject data into the pubsub run the following command
+    to inject data into the pubsub run the following command:
+    
     mvn compile exec:java \
     -Dexec.mainClass=com.tikal.turkel.utils.Injector \
     -Dexec.args="backend-ct \
@@ -84,114 +89,7 @@ Project steps
 
 backend-ct one /Users/chaimt/Downloads/traffic_sensor_test2.csv /Users/chaimt/workspace/chaim/beam-workshop/java/src/main/resources/Backend-CT-4641c937bd57.json
 
---project=backend-ct
---stagingLocation=gs://backend-ct/df/
---tempLocation=gs://backend-ct/df/
---serviceAccount=beam-workshop@backend-ct.iam.gserviceaccount.com
---runner=DataflowRunner
 
-
-export GOOGLE_APPLICATION_CREDENTIALS=/Users/chaimt/workspace/chaim/beam-workshop/java/src/main/resources/Backend-CT-2b1affb0752f.json
-
-mvn compile exec:java \
-          -Dexec.mainClass=com.tikal.beam.TrafficMaxLaneFlow \
-          -Dexec.args="--project=backend-ct \
-          --stagingLocation=gs://backend-ct/df/ \
-          --tempLocation=gs://backend-ct/df/ \
-          --serviceAccount=beam-workshop1@backend-ct.iam.gserviceaccount.com \
-          --filesToStage=./target/beam-workshop-1.0.0-SNAPSHOT.jar \
-          --runner=DataflowRunner"
-          
-           
-          
-          --filesToStage=./target/migration-dataflow-bundled-1.0.0-SNAPSHOT.jar \
-          --runner=DataflowRunner"                     
-```
-mvn compile exec:java \
-          -Dexec.mainClass=com.tikal.turkel.TrafficMaxLaneFlow \
-          -Dexec.args="--project=backend-ct \
-          --stagingLocation=gs://backend-ct/df/stage/ \
-          --tempLocation=gs://backend-ct/df/temp/ \
-          --serviceAccount=beam-workshop-may@backend-ct.iam.gserviceaccount.com \
-          --filesToStage=./target/beam-workshop-bundled-1.0-SNAPSHOT.jar \
-          --runner=DataflowRunner"
-
-          --inputFile=gs://apache-beam-samples/traffic_sensor/Freeways-5Minaa2010-01-01_to_2010-02-15.csv \
-          
-mvn compile exec:java \
-          -Dexec.mainClass=com.tikal.turkel.TrafficMaxLaneFlow \
-          -Dexec.args="--project=backend-ct \
-          --stagingLocation=gs://backend-ct/df/stage/ \
-          --tempLocation=gs://backend-ct/df/temp/ \
-          --googleCredentials=/Users/chaimt/workspace/chaim/beam-workshop/java/src/main/resources/Backend-CT-4641c937bd57.json
-          --serviceAccount=beam-workshop-may@backend-ct.iam.gserviceaccount.com \
-          --inputFile=gs://apache-beam-samples/traffic_sensor/Freeways-5Minaa2010-01-01_to_2010-02-15.csv \
-          --filesToStage=./target/beam-workshop-bundled-1.0-SNAPSHOT.jar \
-          --runner=DataflowRunner"
-          
-          
-mvn compile exec:java \
-          -Dexec.mainClass=com.tikal.turkel.MinimalWordCount \
-          -Dexec.args="--project=backend-ct \
-          --stagingLocation=gs://backend-ct/df/stage/ \
-          --tempLocation=gs://backend-ct/df/temp/ \
-          --serviceAccount=beam-workshop-may@backend-ct.iam.gserviceaccount.com \
-          --filesToStage=./target/beam-workshop-bundled-1.0-SNAPSHOT.jar \
-          --runner=DataflowRunner"
-          
-                    --googleCredentials=/Users/chaimt/workspace/chaim/beam-workshop/java/src/main/resources/Backend-CT-2b1affb0752f.json \
-          
-
-
-
-flink
-    -Pflink-runner \
-    
-              
-mvn -Pflink-runner exec:java -Dexec.mainClass=com.tikal.turkel.TrafficMaxLaneFlow \
-    -Dexec.args="--runner=FlinkRunner \
-      --inputFile=gs://apache-beam-samples/traffic_sensor/Freeways-5Minaa2010-01-01_to_2010-02-15.csv \
-      --googleCredentials=/Users/chaimt/workspace/chaim/beam-workshop/java/src/main/resources/Backend-CT-4641c937bd57.json \
-      --project=backend-ct \
-      --tempLocation=gs://backend-ct/df/temp/ \
-      --flinkMaster=http://localhost:6123/ \
-      --serviceAccount=beam-workshop1@backend-ct.iam.gserviceaccount.com \
-      --filesToStage=target/beam-workshop-bundled-1.0-SNAPSHOT.jar"
-      
-      
-      
-      
-mvn exec:java -Dexec.mainClass=com.tikal.turkel.WordCount \
-    -Pflink-runner \
-    -Dexec.args="--runner=FlinkRunner \
-      --project=backend-ct \
-      --tempLocation=gs://backend-ct/df/temp/ \
-      --output=gs://backend-ct/df/out/ \
-      --serviceAccount=beam-workshop-may@backend-ct.iam.gserviceaccount.com \
-      --flinkMaster=http://localhost:6123/ \
-      --filesToStage=target/beam-workshop-bundled-1.0-SNAPSHOT.jar"
-      
-      
-                --stagingLocation=gs://backend-ct/df/stage/ \
-                --tempLocation=gs://backend-ct/df/temp/ \
-                --serviceAccount=beam-workshop-may@backend-ct.iam.gserviceaccount.com \
-                --filesToStage=./target/beam-workshop-bundled-1.0-SNAPSHOT.jar \
-                --runner=DataflowRunner"
-
-
-
-./bin/flink run -c com.tikal.turkel.TrafficMaxLaneFlow /Users/chaimt/workspace/chaim/beam-workshop/java/target/beam-workshop-bundled-1.0-SNAPSHOT.jar \
-      --inputFile=gs://apache-beam-samples/traffic_sensor/Freeways-5Minaa2010-01-01_to_2010-02-15.csv \
-            --F=/Users/chaimt/workspace/chaim/beam-workshop/java/src/main/resources/Backend-CT-4641c937bd57.json \
-            --project=backend-ct \
-            --tempLocation=gs://backend-ct/df/temp/ \
-            --serviceAccount=beam-workshop1@backend-ct.iam.gserviceaccount.com 
-
-
-./bin/flink run -m myJMHost:6123 /Users/chaimt/workspace/chaim/beam-workshop/java/target/beam-workshop-bundled-1.0-SNAPSHOT.jar \
-      --project=backend-ct \
-      --tempLocation=gs://backend-ct/df/temp/ \
-      --output=gs://backend-ct/df/out/ \
-      --serviceAccount=beam-workshop-may@backend-ct.iam.gserviceaccount.com
+   
 
           
