@@ -47,7 +47,7 @@ The file for the project can be found at:
     ```
     To run the code, use maven to run the main class with parameters 
         
-        mvn compile exec:java -Dexec.mainClass=com.tikal.turkel.TrafficMaxLaneFlow -Dexec.args="--project=backend-ct \
+        mvn package exec:java -Dexec.mainClass=com.tikal.turkel.TrafficMaxLaneFlow -Dexec.args="--project=backend-ct \
                   --stagingLocation=gs://backend-ct/df/stage/ \
                   --tempLocation=gs://backend-ct/df/temp/ \
                   --googleCredentials=./src/main/resources/Backend-CT-4641c937bd57.json
