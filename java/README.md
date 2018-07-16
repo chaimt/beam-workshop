@@ -91,21 +91,21 @@ backend-ct one /Users/chaimt/Downloads/traffic_sensor_test2.csv /Users/chaimt/wo
 --runner=DataflowRunner
 
 
-export GOOGLE_APPLICATION_CREDENTIALS=/Users/chaimt/workspace/chaim/beam-workshop/java/src/main/resources/Backend-CT-2b1affb0752f.json
+export GOOGLE_APPLICATION_CREDENTIALS=/Users/chaimt/workspace/chaim/beam-workshop/java/src/main/resources/Backend-CT-4641c937bd57.json
 
 mvn compile exec:java \
-          -Dexec.mainClass=com.tikal.beam.TrafficMaxLaneFlow \
+          -Dexec.mainClass=com.tikal.turkel.TrafficMaxLaneFlow \
           -Dexec.args="--project=backend-ct \
           --stagingLocation=gs://backend-ct/df/ \
           --tempLocation=gs://backend-ct/df/ \
           --serviceAccount=beam-workshop1@backend-ct.iam.gserviceaccount.com \
+          --googleCredentials=/Users/chaimt/workspace/chaim/beam-workshop/java/src/main/resources/Backend-CT-4641c937bd57.json \
+          --streaming=false \
           --filesToStage=./target/beam-workshop-1.0.0-SNAPSHOT.jar \
           --runner=DataflowRunner"
           
            
           
-          --filesToStage=./target/migration-dataflow-bundled-1.0.0-SNAPSHOT.jar \
-          --runner=DataflowRunner"                     
 ```
 mvn compile exec:java \
           -Dexec.mainClass=com.tikal.turkel.TrafficMaxLaneFlow \
@@ -114,8 +114,11 @@ mvn compile exec:java \
           --tempLocation=gs://backend-ct/df/temp/ \
           --serviceAccount=beam-workshop-may@backend-ct.iam.gserviceaccount.com \
           --filesToStage=./target/beam-workshop-bundled-1.0-SNAPSHOT.jar \
+          --googleCredentials=/Users/chaimt/workspace/chaim/beam-workshop/java/src/main/resources/Backend-CT-4641c937bd57.json \
+          --streaming=false \
+          --filesToStage=./target/beam-workshop-1.0.0-SNAPSHOT.jar \
           --runner=DataflowRunner"
-
+          
           --inputFile=gs://apache-beam-samples/traffic_sensor/Freeways-5Minaa2010-01-01_to_2010-02-15.csv \
           
 mvn compile exec:java \
