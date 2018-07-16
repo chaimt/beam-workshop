@@ -25,16 +25,16 @@ import com.tikal.turkel.common.ExampleBigQueryTableOptions;
 import com.tikal.turkel.common.ExampleOptions;
 import com.tikal.turkel.common.ExamplePubsubTopicAndSubscriptionOptions;
 import com.tikal.turkel.common.ExampleUtils;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.apache.avro.reflect.Nullable;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.AvroCoder;
 import org.apache.beam.sdk.coders.DefaultCoder;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
-import org.apache.beam.sdk.options.Default;
-import org.apache.beam.sdk.options.Description;
-import org.apache.beam.sdk.options.PipelineOptionsFactory;
-import org.apache.beam.sdk.options.Validation;
+import org.apache.beam.sdk.options.*;
 import org.apache.beam.sdk.transforms.DoFn;
 import org.apache.beam.sdk.transforms.PTransform;
 import org.apache.beam.sdk.transforms.ParDo;
@@ -77,82 +77,41 @@ public class TrafficMaxLaneFlow {
     static final int WINDOW_SLIDE_EVERY = 5;  // Default window 'slide every' setting in minutes
 
     /**
-     * This class holds information about each lane in a station reading, along with some general
-     * information from the reading.
+     * Sets up and starts streaming pipeline.
+     *
+     * @throws IOException if there is a problem setting up resources
      */
-    @DefaultCoder(AvroCoder.class)
-    static class LaneInfo {
-        @Nullable
-        String stationId;
-        @Nullable
-        String lane;
-        @Nullable
-        String direction;
-        @Nullable
-        String freeway;
-        @Nullable
-        String recordedTimestamp;
-        @Nullable
-        Integer laneFlow;
-        @Nullable
-        Integer totalFlow;
-        @Nullable
-        Double laneAO;
-        @Nullable
-        Double laneAS;
+    public static void main(String[] args) throws IOException {
+        TrafficMaxLaneFlowOptions options = PipelineOptionsFactory.fromArgs(args)
+                .withValidation()
+                .as(TrafficMaxLaneFlowOptions.class);
+        System.getProperties().setProperty("GOOGLE_APPLICATION_CREDENTIALS", options.getGoogleCredentials());
+        options.setBigQuerySchema(FormatMaxesFn.getSchema());
+        // Using ExampleUtils to set up required resources.
+        ExampleUtils exampleUtils = new ExampleUtils(options);
+        exampleUtils.setup();
 
-        public LaneInfo() {
-        }
+        Pipeline pipeline = Pipeline.create(options);
+        TableReference tableRef = new TableReference();
+        tableRef.setProjectId(options.getProject());
+        tableRef.setDatasetId(options.getBigQueryDataset());
+        tableRef.setTableId(options.getBigQueryTable());
 
-        public LaneInfo(String stationId, String lane, String direction, String freeway,
-                        String timestamp, Integer laneFlow, Double laneAO,
-                        Double laneAS, Integer totalFlow) {
-            this.stationId = stationId;
-            this.lane = lane;
-            this.direction = direction;
-            this.freeway = freeway;
-            this.recordedTimestamp = timestamp;
-            this.laneFlow = laneFlow;
-            this.laneAO = laneAO;
-            this.laneAS = laneAS;
-            this.totalFlow = totalFlow;
-        }
+        ExamplePubsubTopicAndSubscriptionOptions pubsubOptions =
+                options.as(ExamplePubsubTopicAndSubscriptionOptions.class);
 
-        public String getStationId() {
-            return this.stationId;
-        }
+        pipeline
+                .apply("ReadLines", new ReadFileAndExtractTimestamps(options.getInputFile()))
+                .apply(ParDo.of(new ExtractFlowInfoFn()))
+                .apply(ParDo.of(new FormatMaxesFn()))
+                .apply(BigQueryIO.writeTableRows().to(tableRef).withSchema(FormatMaxesFn.getSchema()));
 
-        public String getLane() {
-            return this.lane;
-        }
+        // Run the pipeline.
+//        PipelineResult result =
+        pipeline.run();
 
-        public String getDirection() {
-            return this.direction;
-        }
-
-        public String getFreeway() {
-            return this.freeway;
-        }
-
-        public String getRecordedTimestamp() {
-            return this.recordedTimestamp;
-        }
-
-        public Integer getLaneFlow() {
-            return this.laneFlow;
-        }
-
-        public Double getLaneAO() {
-            return this.laneAO;
-        }
-
-        public Double getLaneAS() {
-            return this.laneAS;
-        }
-
-        public Integer getTotalFlow() {
-            return this.totalFlow;
-        }
+        // ExampleUtils will try to cancel the pipeline and the injector before the program exists.
+//    exampleUtils.waitToFinish(result);
     }
 
     /**
@@ -177,38 +136,35 @@ public class TrafficMaxLaneFlow {
     }
 
     /**
-     * Extract flow information for each of the 8 lanes in a reading, and output as separate tuples.
-     * This will let us determine which lane has the max flow for that station over the span of the
-     * window, and output not only the max flow from that calculation, but other associated
-     * information. The number of lanes for which data is present depends upon which freeway the data
-     * point comes from.
+     * Options supported by {@link TrafficMaxLaneFlow}.
+     *
+     * <p>Inherits standard configuration options.
      */
-    static class ExtractFlowInfoFn extends DoFn<String, KV<String, LaneInfo>> {
+    public interface TrafficMaxLaneFlowOptions extends StreamingOptions, ExampleOptions, ExampleBigQueryTableOptions {
+        @Description("Path of the file to read from")
+        @Default.String("gs://apache-beam-samples/traffic_sensor/"
+                + "Freeways-5Minaa2010-01-01_to_2010-02-15_test2.csv")
+        String getInputFile();
 
-        @ProcessElement
-        public void processElement(ProcessContext c) {
-            String[] items = c.element().split(",");
-            if (items.length < 48) {
-                // Skip the invalid input.
-                return;
-            }
-            // extract the sensor information for the lanes from the input string fields.
-            String timestamp = items[0];
-            String stationId = items[1];
-            String freeway = items[2];
-            String direction = items[3];
-            Integer totalFlow = tryIntParse(items[7]);
-            int i = 1;
-            Integer laneFlow = tryIntParse(items[6 + 5 * i]);
-            Double laneAvgOccupancy = tryDoubleParse(items[7 + 5 * i]);
-            Double laneAvgSpeed = tryDoubleParse(items[8 + 5 * i]);
-            if (laneFlow == null || laneAvgOccupancy == null || laneAvgSpeed == null) {
-                return;
-            }
-            LaneInfo laneInfo = new LaneInfo(stationId, "lane" + i, direction, freeway, timestamp,
-                    laneFlow, laneAvgOccupancy, laneAvgSpeed, totalFlow);
-            c.output(KV.of(stationId, laneInfo));
-        }
+        void setInputFile(String value);
+
+        @Description("Numeric value of sliding window duration, in minutes")
+        @Default.Integer(WINDOW_DURATION)
+        Integer getWindowDuration();
+
+        void setWindowDuration(Integer value);
+
+        @Description("Numeric value of window 'slide every' setting, in minutes")
+        @Default.Integer(WINDOW_SLIDE_EVERY)
+        Integer getWindowSlideEvery();
+
+        void setWindowSlideEvery(Integer value);
+
+        @Validation.Required
+        String getGoogleCredentials();
+
+        void setGoogleCredentials(String value);
+
     }
 
     /**
@@ -276,6 +232,17 @@ public class TrafficMaxLaneFlow {
         }
     }
 
+//    static class MaxLaneFlow
+//            extends PTransform<PCollection<KV<String, LaneInfo>>, PCollection<TableRow>> {
+//        @Override
+//        public PCollection<TableRow> expand(PCollection<KV<String, LaneInfo>> flowInfo) {
+//            PCollection<KV<String, LaneInfo>> flowMaxes = flowInfo.apply(Combine.perKey(new MaxFlow()));
+//            PCollection<TableRow> results = flowMaxes.apply(
+//                    ParDo.of(new FormatMaxesFn()));
+//            return results;
+//        }
+//    }
+
     static class ReadFileAndExtractTimestamps extends PTransform<PBegin, PCollection<String>> {
         private final String inputFile;
 
@@ -292,75 +259,60 @@ public class TrafficMaxLaneFlow {
     }
 
     /**
-     * Options supported by {@link TrafficMaxLaneFlow}.
-     *
-     * <p>Inherits standard configuration options.
+     * This class holds information about each lane in a station reading, along with some general
+     * information from the reading.
      */
-    public interface TrafficMaxLaneFlowOptions extends ExampleOptions, ExampleBigQueryTableOptions {
-        @Description("Path of the file to read from")
-        @Default.String("gs://apache-beam-samples/traffic_sensor/"
-                + "Freeways-5Minaa2010-01-01_to_2010-02-15_test2.csv")
-        String getInputFile();
-
-        void setInputFile(String value);
-
-        @Description("Numeric value of sliding window duration, in minutes")
-        @Default.Integer(WINDOW_DURATION)
-        Integer getWindowDuration();
-
-        void setWindowDuration(Integer value);
-
-        @Description("Numeric value of window 'slide every' setting, in minutes")
-        @Default.Integer(WINDOW_SLIDE_EVERY)
-        Integer getWindowSlideEvery();
-
-        void setWindowSlideEvery(Integer value);
-
-        @Validation.Required
-        String getGoogleCredentials();
-
-        void setGoogleCredentials(String value);
-
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Getter
+    @DefaultCoder(AvroCoder.class)
+    static class LaneInfo {
+        @Nullable String stationId;
+        @Nullable String lane;
+        @Nullable String direction;
+        @Nullable String freeway;
+        @Nullable String recordedTimestamp;
+        @Nullable Integer laneFlow;
+        @Nullable Integer totalFlow;
+        @Nullable Double laneAO;
+        @Nullable Double laneAS;
     }
 
     /**
-     * Sets up and starts streaming pipeline.
-     *
-     * @throws IOException if there is a problem setting up resources
+     * Extract flow information for each of the 8 lanes in a reading, and output as separate tuples.
+     * This will let us determine which lane has the max flow for that station over the span of the
+     * window, and output not only the max flow from that calculation, but other associated
+     * information. The number of lanes for which data is present depends upon which freeway the data
+     * point comes from.
      */
-    public static void main(String[] args) throws IOException {
-        TrafficMaxLaneFlowOptions options = PipelineOptionsFactory.fromArgs(args)
-                .withValidation()
-                .as(TrafficMaxLaneFlowOptions.class);
-        System.getProperties().setProperty("GOOGLE_APPLICATION_CREDENTIALS", options.getGoogleCredentials());
-        options.setBigQuerySchema(FormatMaxesFn.getSchema());
-        // Using ExampleUtils to set up required resources.
-        ExampleUtils exampleUtils = new ExampleUtils(options);
-        exampleUtils.setup();
+    static class ExtractFlowInfoFn extends DoFn<String, KV<String, LaneInfo>> {
 
-        Pipeline pipeline = Pipeline.create(options);
-        TableReference tableRef = new TableReference();
-        tableRef.setProjectId(options.getProject());
-        tableRef.setDatasetId(options.getBigQueryDataset());
-        tableRef.setTableId(options.getBigQueryTable());
-
-
-        ExamplePubsubTopicAndSubscriptionOptions pubsubOptions =
-                options.as(ExamplePubsubTopicAndSubscriptionOptions.class);
-
-        pipeline
-                .apply("ReadLines", new ReadFileAndExtractTimestamps(options.getInputFile()))
-                .apply(ParDo.of(new ExtractFlowInfoFn()))
-                .apply(ParDo.of(new FormatMaxesFn()))
-                .apply(BigQueryIO.writeTableRows().to(tableRef).withSchema(FormatMaxesFn.getSchema()));
-
-        // Run the pipeline.
-//        PipelineResult result =
-        pipeline.run();
-
-        // ExampleUtils will try to cancel the pipeline and the injector before the program exists.
-//    exampleUtils.waitToFinish(result);
+        @ProcessElement
+        public void processElement(ProcessContext c) {
+            String[] items = c.element().split(",");
+            if (items.length < 48) {
+                // Skip the invalid input.
+                return;
+            }
+            // extract the sensor information for the lanes from the input string fields.
+            String timestamp = items[0];
+            String stationId = items[1];
+            String freeway = items[2];
+            String direction = items[3];
+            Integer totalFlow = tryIntParse(items[7]);
+            int i = 1;
+            Integer laneFlow = tryIntParse(items[6 + 5 * i]);
+            Double laneAvgOccupancy = tryDoubleParse(items[7 + 5 * i]);
+            Double laneAvgSpeed = tryDoubleParse(items[8 + 5 * i]);
+            if (laneFlow == null || laneAvgOccupancy == null || laneAvgSpeed == null) {
+                return;
+            }
+            LaneInfo laneInfo = new LaneInfo(stationId, "lane" + i, direction, freeway, timestamp,
+                    laneFlow, totalFlow,laneAvgOccupancy, laneAvgSpeed);
+            c.output(KV.of(stationId, laneInfo));
+        }
     }
+
 
     private static Integer tryIntParse(String number) {
         try {
