@@ -32,6 +32,7 @@ import org.apache.avro.reflect.Nullable;
 import org.apache.beam.sdk.Pipeline;
 import org.apache.beam.sdk.coders.AvroCoder;
 import org.apache.beam.sdk.coders.DefaultCoder;
+import org.apache.beam.sdk.extensions.sql.BeamSql;
 import org.apache.beam.sdk.io.TextIO;
 import org.apache.beam.sdk.io.gcp.bigquery.BigQueryIO;
 import org.apache.beam.sdk.io.gcp.pubsub.PubsubIO;
@@ -42,6 +43,7 @@ import org.apache.beam.sdk.transforms.windowing.Window;
 import org.apache.beam.sdk.values.KV;
 import org.apache.beam.sdk.values.PBegin;
 import org.apache.beam.sdk.values.PCollection;
+import org.apache.beam.sdk.values.Row;
 import org.joda.time.Duration;
 import org.joda.time.Instant;
 import org.joda.time.format.DateTimeFormat;
@@ -106,14 +108,19 @@ public class TrafficMaxLaneFlow {
                 :
                 pipeline.apply("ReadLines", new ReadFileAndExtractTimestamps(options.getInputFile()));
 
-        readLines
+        PCollection<KV<String, LaneInfo>> lanes = readLines
                 .apply(ParDo.of(new ExtractFlowInfoFn()))
                 .apply(
                         Window.into(
                                 SlidingWindows.of(Duration.standardMinutes(options.getWindowDuration()))
-                                        .every(Duration.standardMinutes(options.getWindowSlideEvery()))))
-                .apply(new MaxLaneFlow())
-                .apply(BigQueryIO.writeTableRows().to(tableRef).withSchema(FormatMaxesFn.getSchema()));
+                                        .every(Duration.standardMinutes(options.getWindowSlideEvery()))));
+
+        PCollection<TableRow> maxRows = options.isSql() ?
+                lanes.apply(new LaneFlow())
+                :
+                lanes.apply(new MaxLaneFlow());
+
+        maxRows.apply(BigQueryIO.writeTableRows().to(tableRef).withSchema(FormatMaxesFn.getSchema()));
 
         // Run the pipeline.
 //        PipelineResult result =
@@ -174,6 +181,10 @@ public class TrafficMaxLaneFlow {
 
         void setGoogleCredentials(String value);
 
+        boolean isSql();
+        void setSql(boolean value);
+
+
     }
 
     /**
@@ -196,6 +207,26 @@ public class TrafficMaxLaneFlow {
                 }
             }
             return maxInfo;
+        }
+    }
+
+
+    static class FormatRowFn extends DoFn<Row, TableRow> {
+        @ProcessElement
+        public void processElement(ProcessContext c) {
+            Row element = c.element();
+            TableRow row = new TableRow()
+//                    .set("station_id", element.getInt32(station_id))
+                    .set("direction", element.getString("direction"))
+//                    .set("freeway", laneInfo.getFreeway())
+//                    .set("lane_max_flow", laneInfo.getLaneFlow())
+//                    .set("lane", laneInfo.getLane())
+//                    .set("avg_occ", laneInfo.getLaneAO())
+//                    .set("avg_speed", laneInfo.getLaneAS())
+//                    .set("total_flow", laneInfo.getTotalFlow())
+//                    .set("recorded_timestamp", laneInfo.getRecordedTimestamp())
+                    .set("window_timestamp", c.timestamp().toString());
+            c.output(row);
         }
     }
 
@@ -238,6 +269,18 @@ public class TrafficMaxLaneFlow {
             fields.add(new TableFieldSchema().setName("recorded_timestamp").setType("STRING"));
             TableSchema schema = new TableSchema().setFields(fields);
             return schema;
+        }
+    }
+
+    static class LaneFlow
+            extends PTransform<PCollection<KV<String, LaneInfo>>, PCollection<TableRow>> {
+        @Override
+        public PCollection<TableRow> expand(PCollection<KV<String, LaneInfo>> flowInfo) {
+
+            PCollection<Row> apply = flowInfo.apply(BeamSql.query("select max(LaneFlow) from PCOLLECTION"));
+            PCollection<TableRow> results = apply.apply(
+                    ParDo.of(new FormatRowFn()));
+            return results;
         }
     }
 
